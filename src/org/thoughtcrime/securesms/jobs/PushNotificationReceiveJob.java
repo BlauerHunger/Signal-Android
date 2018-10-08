@@ -57,18 +57,15 @@ public class PushNotificationReceiveJob extends PushReceivedJob implements Injec
     pullAndProcessMessages(receiver, TAG, System.currentTimeMillis());
   }
 
-  public synchronized void pullAndProcessMessages(SignalServiceMessageReceiver receiver, String tag, long startTime) throws IOException {
-    receiver.retrieveMessages(envelope -> {
-      Log.i(tag, "Retrieved an envelope." + timeSuffix(startTime));
-      boolean processingComplete = processEnvelope(context, envelope);
-      Log.i(tag, "Processed an envelope. Complete: " + processingComplete + timeSuffix(startTime));
-
-      if (!processingComplete) {
-        new PushDecryptJob(context).processMessage(envelope);
-        Log.i(tag, "Successfully processed a message." + timeSuffix(startTime));
-      }
-    });
-    TextSecurePreferences.setNeedsMessagePull(context, false);
+  public void pullAndProcessMessages(SignalServiceMessageReceiver receiver, String tag, long startTime) throws IOException {
+    synchronized (PushNotificationReceiveJob.class) {
+      receiver.retrieveMessages(envelope -> {
+        Log.i(tag, "Retrieved an envelope." + timeSuffix(startTime));
+        processEnvelope(envelope);
+        Log.i(tag, "Successfully processed an envelope." + timeSuffix(startTime));
+      });
+      TextSecurePreferences.setNeedsMessagePull(context, false);
+    }
   }
   @Override
   public boolean onShouldRetry(Exception e) {

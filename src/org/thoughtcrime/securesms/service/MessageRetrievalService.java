@@ -7,7 +7,6 @@ import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 
-import org.thoughtcrime.securesms.jobs.PushDecryptJob;
 import org.thoughtcrime.securesms.logging.Log;
 
 import org.thoughtcrime.securesms.ApplicationContext;
@@ -213,7 +212,7 @@ public class MessageRetrievalService extends Service implements InjectableType, 
               localPipe.read(REQUEST_TIMEOUT_MINUTES, TimeUnit.MINUTES,
                              envelope -> {
                                Log.i(TAG, "Retrieved envelope! " + envelope.getSource());
-                               new PushDecryptJob(getApplicationContext()).processMessage(envelope);
+                               new PushContentReceiveJob(getApplicationContext()).processEnvelope(envelope);
                                decrementPushReceived();
                              });
             } catch (TimeoutException e) {

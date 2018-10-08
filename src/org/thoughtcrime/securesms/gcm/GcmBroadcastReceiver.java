@@ -18,7 +18,6 @@ import org.thoughtcrime.securesms.jobs.PushContentReceiveJob;
 import org.thoughtcrime.securesms.jobs.PushNotificationReceiveJob;
 import org.thoughtcrime.securesms.service.GenericForegroundService;
 import org.thoughtcrime.securesms.util.PowerManagerCompat;
-import org.thoughtcrime.securesms.util.Stopwatch;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.whispersystems.signalservice.api.SignalServiceMessageReceiver;
 import org.whispersystems.signalservice.internal.util.Util;
@@ -101,6 +100,7 @@ public class GcmBroadcastReceiver extends WakefulBroadcastReceiver implements In
             }
             taskCompleted.set(true);
           }
+          Log.i(TAG, "Processing complete.");
         }
       }
     }.start();

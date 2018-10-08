@@ -150,18 +150,20 @@ public class PushDecryptJob extends ContextJob {
 
   @Override
   public void onRun() throws NoSuchMessageException {
-    if (needsMigration()) {
-      Log.w(TAG, "Skipping, waiting for migration...");
-      postMigrationNotification();
-      return;
+    synchronized (PushDecryptJob.class) {
+      if (needsMigration()) {
+        Log.w(TAG, "Skipping, waiting for migration...");
+        postMigrationNotification();
+        return;
+      }
+
+      PushDatabase          database             = DatabaseFactory.getPushDatabase(context);
+      SignalServiceEnvelope envelope             = database.get(messageId);
+      Optional<Long>        optionalSmsMessageId = smsMessageId > 0 ? Optional.of(smsMessageId) : Optional.absent();
+
+      handleMessage(envelope, optionalSmsMessageId);
+      database.delete(messageId);
     }
-
-    PushDatabase          database             = DatabaseFactory.getPushDatabase(context);
-    SignalServiceEnvelope envelope             = database.get(messageId);
-    Optional<Long>        optionalSmsMessageId = smsMessageId > 0 ? Optional.of(smsMessageId) : Optional.absent();
-
-    handleMessage(envelope, optionalSmsMessageId);
-    database.delete(messageId);
   }
 
   @Override
@@ -175,14 +177,16 @@ public class PushDecryptJob extends ContextJob {
   }
 
   public void processMessage(@NonNull SignalServiceEnvelope envelope) {
-    if (needsMigration()) {
-      Log.w(TAG, "Skipping and storing envelope, waiting for migration...");
-      DatabaseFactory.getPushDatabase(context).insert(envelope);
-      postMigrationNotification();
-      return;
-    }
+    synchronized (PushDecryptJob.class) {
+      if (needsMigration()) {
+        Log.w(TAG, "Skipping and storing envelope, waiting for migration...");
+        DatabaseFactory.getPushDatabase(context).insert(envelope);
+        postMigrationNotification();
+        return;
+      }
 
-    handleMessage(envelope, Optional.absent());
+      handleMessage(envelope, Optional.absent());
+    }
   }
 
   private boolean needsMigration() {
@@ -203,7 +207,7 @@ public class PushDecryptJob extends ContextJob {
 
   }
 
-  private synchronized void handleMessage(@NonNull SignalServiceEnvelope envelope, @NonNull Optional<Long> smsMessageId) {
+  private void handleMessage(@NonNull SignalServiceEnvelope envelope, @NonNull Optional<Long> smsMessageId) {
     try {
       GroupDatabase        groupDatabase = DatabaseFactory.getGroupDatabase(context);
       SignalProtocolStore  axolotlStore  = new SignalProtocolStoreImpl(context);
@@ -510,8 +514,8 @@ public class PushDecryptJob extends ContextJob {
     }
 
     if (threadId != null) {
-      DatabaseFactory.getThreadDatabase(context).setRead(threadId, true);
-      MessageNotifier.updateNotification(context);
+      DatabaseFactory.getThreadDatabase(getContext()).setRead(threadId, true);
+      MessageNotifier.updateNotification(getContext());
     }
 
     MessageNotifier.setLastDesktopActivityTimestamp(message.getTimestamp());
