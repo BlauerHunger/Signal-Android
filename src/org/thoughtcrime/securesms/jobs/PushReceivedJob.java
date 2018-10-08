@@ -21,7 +21,7 @@ public abstract class PushReceivedJob extends ContextJob {
     super(context, parameters);
   }
 
-  public static boolean processEnvelope(@NonNull Context context, @NonNull SignalServiceEnvelope envelope) {
+  public boolean processEnvelope(@NonNull Context context, @NonNull SignalServiceEnvelope envelope) {
     Address   source    = Address.fromExternal(context, envelope.getSource());
     Recipient recipient = Recipient.from(context, source, false);
 
@@ -31,7 +31,7 @@ public abstract class PushReceivedJob extends ContextJob {
     }
 
     if (envelope.isReceipt()) {
-      handleReceipt(context, envelope);
+      handleReceipt(envelope);
     } else if (envelope.isPreKeySignalMessage() || envelope.isSignalMessage()) {
       return false;
     } else {
@@ -45,17 +45,17 @@ public abstract class PushReceivedJob extends ContextJob {
     boolean processingComplete = processEnvelope(context, envelope);
 
     if (!processingComplete) {
-      PushDecryptJob.processMessage(context, envelope);
+      new PushDecryptJob(context).processMessage(envelope);
     }
   }
 
-  private static void handleReceipt(@NonNull Context context, @NonNull SignalServiceEnvelope envelope) {
+  private void handleReceipt(@NonNull SignalServiceEnvelope envelope) {
     Log.i(TAG, String.format("Received receipt: (XXXXX, %d)", envelope.getTimestamp()));
     DatabaseFactory.getMmsSmsDatabase(context).incrementDeliveryReceiptCount(new SyncMessageId(Address.fromExternal(context, envelope.getSource()),
                                                                                                envelope.getTimestamp()), System.currentTimeMillis());
   }
 
-  private static boolean isActiveNumber(@NonNull Recipient recipient) {
+  private boolean isActiveNumber(@NonNull Recipient recipient) {
     return recipient.resolve().getRegistered() == RecipientDatabase.RegisteredState.REGISTERED;
   }
 }

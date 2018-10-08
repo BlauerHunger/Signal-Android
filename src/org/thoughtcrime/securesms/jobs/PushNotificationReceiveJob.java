@@ -54,17 +54,17 @@ public class PushNotificationReceiveJob extends PushReceivedJob implements Injec
 
   @Override
   public void onRun() throws IOException {
-    pullAndProcessMessages(context, receiver, TAG, System.currentTimeMillis());
+    pullAndProcessMessages(receiver, TAG, System.currentTimeMillis());
   }
 
-  public static synchronized void pullAndProcessMessages(Context context, SignalServiceMessageReceiver receiver, String tag, long startTime) throws IOException {
+  public synchronized void pullAndProcessMessages(SignalServiceMessageReceiver receiver, String tag, long startTime) throws IOException {
     receiver.retrieveMessages(envelope -> {
       Log.i(tag, "Retrieved an envelope." + timeSuffix(startTime));
-      boolean processingComplete = PushReceivedJob.processEnvelope(context, envelope);
+      boolean processingComplete = processEnvelope(context, envelope);
       Log.i(tag, "Processed an envelope. Complete: " + processingComplete + timeSuffix(startTime));
 
       if (!processingComplete) {
-        PushDecryptJob.processMessage(context, envelope);
+        new PushDecryptJob(context).processMessage(envelope);
         Log.i(tag, "Successfully processed a message." + timeSuffix(startTime));
       }
     });

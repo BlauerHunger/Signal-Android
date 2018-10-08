@@ -213,7 +213,7 @@ public class MessageRetrievalService extends Service implements InjectableType, 
               localPipe.read(REQUEST_TIMEOUT_MINUTES, TimeUnit.MINUTES,
                              envelope -> {
                                Log.i(TAG, "Retrieved envelope! " + envelope.getSource());
-                               PushDecryptJob.processMessage(getApplicationContext(), envelope);
+                               new PushDecryptJob(getApplicationContext()).processMessage(envelope);
                                decrementPushReceived();
                              });
             } catch (TimeoutException e) {

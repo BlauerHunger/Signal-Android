@@ -86,7 +86,7 @@ public class GcmBroadcastReceiver extends WakefulBroadcastReceiver implements In
       @Override
       public void run() {
         try {
-          PushNotificationReceiveJob.pullAndProcessMessages(context, messageReceiver, TAG, startTime);
+          new PushNotificationReceiveJob(context).pullAndProcessMessages(messageReceiver, TAG, startTime);
         } catch (IOException e) {
           Log.i(TAG, "Failed to retrieve the envelope. Scheduling on JobManager.", e);
           ApplicationContext.getInstance(context)
