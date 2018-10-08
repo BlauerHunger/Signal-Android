@@ -12,6 +12,7 @@ import org.thoughtcrime.securesms.logging.Log;
 import org.thoughtcrime.securesms.util.TextSecurePreferences;
 import org.whispersystems.libsignal.util.guava.Optional;
 import org.whispersystems.signalservice.api.SignalServiceMessageReceiver;
+import org.whispersystems.signalservice.api.messages.SignalServiceEnvelope;
 import org.whispersystems.signalservice.api.push.exceptions.PushNetworkException;
 
 import java.io.IOException;
@@ -59,16 +60,12 @@ public class PushNotificationReceiveJob extends PushReceivedJob implements Injec
   public static synchronized void pullAndProcessMessages(Context context, SignalServiceMessageReceiver receiver, String tag, long startTime) throws IOException {
     receiver.retrieveMessages(envelope -> {
       Log.i(tag, "Retrieved an envelope." + timeSuffix(startTime));
-      Optional<Long> messageId = PushReceivedJob.processEnvelope(context, envelope);
-      Log.i(tag, "Processed an envelope." + timeSuffix(startTime));
+      boolean processingComplete = PushReceivedJob.processEnvelope(context, envelope);
+      Log.i(tag, "Processed an envelope. Complete: " + processingComplete + timeSuffix(startTime));
 
-      if (messageId.isPresent()) {
-        try {
-          PushDecryptJob.processMessage(context, messageId.get(), -1);
-          Log.i(tag, "Successfully processed a message." + timeSuffix(startTime));
-        } catch (NoSuchMessageException e) {
-          Log.i(tag, "No such message." + timeSuffix(startTime), e);
-        }
+      if (!processingComplete) {
+        PushDecryptJob.processMessage(context, envelope);
+        Log.i(tag, "Successfully processed a message." + timeSuffix(startTime));
       }
     });
     TextSecurePreferences.setNeedsMessagePull(context, false);

@@ -146,7 +146,18 @@ public class PushDecryptJob extends ContextJob {
 
   @Override
   public void onRun() throws NoSuchMessageException {
-    processMessage(context, messageId, smsMessageId);
+    if (needsMigration(context)) {
+      Log.w(TAG, "Skipping, waiting for migration...");
+      postMigrationNotification(context);
+      return;
+    }
+
+    PushDatabase          database             = DatabaseFactory.getPushDatabase(context);
+    SignalServiceEnvelope envelope             = database.get(messageId);
+    Optional<Long>        optionalSmsMessageId = smsMessageId > 0 ? Optional.of(smsMessageId) : Optional.absent();
+
+    handleMessage(context, envelope, optionalSmsMessageId);
+    database.delete(messageId);
   }
 
   @Override
@@ -159,36 +170,36 @@ public class PushDecryptJob extends ContextJob {
 
   }
 
-  public static synchronized void processMessage(@NonNull Context context, long messageId, long smsMessageId) throws NoSuchMessageException {
-    if (!IdentityKeyUtil.hasIdentityKey(context)) {
-      Log.w(TAG, "Skipping, waiting for migration...");
+  public static void processMessage(@NonNull Context context, @NonNull SignalServiceEnvelope envelope) {
+    if (needsMigration(context)) {
+      Log.w(TAG, "Skipping and storing envelope, waiting for migration...");
+      DatabaseFactory.getPushDatabase(context).insert(envelope);
+      postMigrationNotification(context);
       return;
     }
 
-    if (TextSecurePreferences.getNeedsSqlCipherMigration(context)) {
-      Log.w(TAG, "Skipping, waiting for sqlcipher migration...");
-      NotificationManagerCompat.from(context).notify(494949,
-                                                     new NotificationCompat.Builder(context, NotificationChannels.getMessagesChannel(context))
-                                                         .setSmallIcon(R.drawable.icon_notification)
-                                                         .setPriority(NotificationCompat.PRIORITY_HIGH)
-                                                         .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-                                                         .setContentTitle(context.getString(R.string.PushDecryptJob_new_locked_message))
-                                                         .setContentText(context.getString(R.string.PushDecryptJob_unlock_to_view_pending_messages))
-                                                         .setContentIntent(PendingIntent.getActivity(context, 0, new Intent(context, ConversationListActivity.class), 0))
-                                                         .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE)
-                                                         .build());
-      return;
-    }
-
-    PushDatabase          database             = DatabaseFactory.getPushDatabase(context);
-    SignalServiceEnvelope envelope             = database.get(messageId);
-    Optional<Long>        optionalSmsMessageId = smsMessageId > 0 ? Optional.of(smsMessageId) : Optional.absent();
-
-    handleMessage(context, envelope, optionalSmsMessageId);
-    database.delete(messageId);
+    handleMessage(context, envelope, Optional.absent());
   }
 
-  private static void handleMessage(@NonNull Context context, @NonNull SignalServiceEnvelope envelope, @NonNull Optional<Long> smsMessageId) {
+  private static boolean needsMigration(@NonNull Context context) {
+    return !IdentityKeyUtil.hasIdentityKey(context) || TextSecurePreferences.getNeedsSqlCipherMigration(context);
+  }
+
+  private static void postMigrationNotification(@NonNull Context context) {
+    NotificationManagerCompat.from(context).notify(494949,
+                                                   new NotificationCompat.Builder(context, NotificationChannels.getMessagesChannel(context))
+                                                                         .setSmallIcon(R.drawable.icon_notification)
+                                                                         .setPriority(NotificationCompat.PRIORITY_HIGH)
+                                                                         .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+                                                                         .setContentTitle(context.getString(R.string.PushDecryptJob_new_locked_message))
+                                                                         .setContentText(context.getString(R.string.PushDecryptJob_unlock_to_view_pending_messages))
+                                                                         .setContentIntent(PendingIntent.getActivity(context, 0, new Intent(context, ConversationListActivity.class), 0))
+                                                                         .setDefaults(NotificationCompat.DEFAULT_SOUND | NotificationCompat.DEFAULT_VIBRATE)
+                                                                         .build());
+
+  }
+
+  private static synchronized void handleMessage(@NonNull Context context, @NonNull SignalServiceEnvelope envelope, @NonNull Optional<Long> smsMessageId) {
     try {
       GroupDatabase        groupDatabase = DatabaseFactory.getGroupDatabase(context);
       SignalProtocolStore  axolotlStore  = new SignalProtocolStoreImpl(context);

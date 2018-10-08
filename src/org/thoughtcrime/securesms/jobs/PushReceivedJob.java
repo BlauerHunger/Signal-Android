@@ -11,7 +11,6 @@ import org.thoughtcrime.securesms.database.RecipientDatabase;
 import org.thoughtcrime.securesms.jobmanager.JobParameters;
 import org.thoughtcrime.securesms.logging.Log;
 import org.thoughtcrime.securesms.recipients.Recipient;
-import org.whispersystems.libsignal.util.guava.Optional;
 import org.whispersystems.signalservice.api.messages.SignalServiceEnvelope;
 
 public abstract class PushReceivedJob extends ContextJob {
@@ -22,7 +21,7 @@ public abstract class PushReceivedJob extends ContextJob {
     super(context, parameters);
   }
 
-  public static Optional<Long> processEnvelope(@NonNull Context context, @NonNull SignalServiceEnvelope envelope) {
+  public static boolean processEnvelope(@NonNull Context context, @NonNull SignalServiceEnvelope envelope) {
     Address   source    = Address.fromExternal(context, envelope.getSource());
     Recipient recipient = Recipient.from(context, source, false);
 
@@ -34,26 +33,20 @@ public abstract class PushReceivedJob extends ContextJob {
     if (envelope.isReceipt()) {
       handleReceipt(context, envelope);
     } else if (envelope.isPreKeySignalMessage() || envelope.isSignalMessage()) {
-      return Optional.of(handleMessage(context, envelope));
+      return false;
     } else {
       Log.w(TAG, "Received envelope of unknown type: " + envelope.getType());
     }
 
-    return Optional.absent();
+    return true;
   }
 
   public void handle(SignalServiceEnvelope envelope) {
-    Optional<Long> messageId = processEnvelope(context, envelope);
+    boolean processingComplete = processEnvelope(context, envelope);
 
-    if (messageId.isPresent()) {
-      ApplicationContext.getInstance(context)
-                        .getJobManager()
-                        .add(new PushDecryptJob(context, messageId.get()));
+    if (!processingComplete) {
+      PushDecryptJob.processMessage(context, envelope);
     }
-  }
-
-  private static long handleMessage(@NonNull Context context, @NonNull SignalServiceEnvelope envelope) {
-    return DatabaseFactory.getPushDatabase(context).insert(envelope);
   }
 
   private static void handleReceipt(@NonNull Context context, @NonNull SignalServiceEnvelope envelope) {
